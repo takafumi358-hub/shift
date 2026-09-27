@@ -41,9 +41,10 @@ button{font-family:inherit;cursor:pointer}
 #summary-btn{background:var(--ac);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;flex-shrink:0}
 
 /* 月切り替え */
-#month-bar{display:flex;align-items:center;justify-content:center;gap:16px;padding:10px 16px;border-bottom:1px solid var(--bd);background:var(--s2)}
-.month-nav{background:transparent;border:1px solid var(--bd);color:var(--tx);border-radius:8px;width:36px;height:36px;font-size:18px;display:flex;align-items:center;justify-content:center}
-#month-label{font-size:17px;font-weight:800;min-width:100px;text-align:center}
+#month-bar{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--bd);background:var(--s2);overflow-x:auto;-webkit-overflow-scrolling:touch}
+#month-bar::-webkit-scrollbar{display:none}
+.month-btn{flex-shrink:0;padding:6px 14px;border-radius:20px;border:1.5px solid var(--bd);background:var(--bg);color:var(--mu);font-weight:600;font-size:13px;white-space:nowrap}
+.month-btn.active{background:var(--ac);border-color:var(--ac);color:#fff}
 
 /* DIAG */
 #diag{display:none;margin-top:8px;background:#0a0c14;border:1px solid var(--bd);border-radius:8px;padding:8px;max-height:150px;overflow-y:auto}
@@ -147,11 +148,7 @@ button.ox:disabled{opacity:.65;cursor:default}
   </div>
 
   <!-- 月切り替えバー -->
-  <div id="month-bar">
-    <button class="month-nav" onclick="changeMonth(-1)">‹</button>
-    <div id="month-label"></div>
-    <button class="month-nav" onclick="changeMonth(1)">›</button>
-  </div>
+  <div id="month-bar"></div>
 
   <div id="legend"></div>
   <div id="tabs"></div>
@@ -276,13 +273,33 @@ function toast(msg,t="ok"){
 }
 
 // ── 月切り替え ────────────────────────────────
-async function changeMonth(delta){
-  curMonth+=delta;
-  if(curMonth>12){curMonth=1;curYear++;}
-  if(curMonth<1){curMonth=12;curYear--;}
+// 表示する月のリスト（10月〜翌3月の6ヶ月）
+const MONTH_LIST=[
+  {y:2026,m:10},{y:2026,m:11},{y:2026,m:12},
+  {y:2027,m:1},{y:2027,m:2},{y:2027,m:3}
+];
+
+function renderMonthBar(){
+  document.getElementById("month-bar").innerHTML=MONTH_LIST.map(({y,m})=>`
+    <button class="month-btn${curYear===y&&curMonth===m?" active":""}"
+      onclick="selectMonth(${y},${m})">${y}年${m}月</button>
+  `).join("");
+}
+
+async function selectMonth(y,m){
+  if(curYear===y&&curMonth===m) return;
+  curYear=y; curMonth=m;
   all=initAll();
   renderAll();
   await reload();
+}
+
+async function changeMonth(delta){
+  const idx=MONTH_LIST.findIndex(({y,m})=>y===curYear&&m===curMonth);
+  const next=idx+delta;
+  if(next<0||next>=MONTH_LIST.length) return;
+  const {y,m}=MONTH_LIST[next];
+  await selectMonth(y,m);
 }
 
 // ── ロード・保存 ──────────────────────────────
@@ -359,7 +376,7 @@ function editShift(){
 
 // ── レンダリング ──────────────────────────────
 function renderAll(){
-  document.getElementById("month-label").textContent=curYear+"年"+curMonth+"月";
+  renderMonthBar();
   document.title="3trees シフト "+curYear+"年"+curMonth+"月";
   renderHeader(); renderLegend(); renderTabs(); renderCard(); renderStatus();
 }
@@ -509,10 +526,9 @@ function changeUrl(){
 
 // ── 起動 ─────────────────────────────────────
 (async function(){
-  // 今月を初期値に設定
-  const now=new Date();
-  curYear=now.getFullYear();
-  curMonth=now.getMonth()+1;
+  // 初期月: MONTH_LISTの最初（10月）
+  curYear=MONTH_LIST[0].y;
+  curMonth=MONTH_LIST[0].m;
 
   const saved=localStorage.getItem(URL_LS);
   if(saved){
